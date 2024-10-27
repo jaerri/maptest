@@ -9,46 +9,80 @@ await app.init({
     width: 640,
     height: 360
 });
-let WIDTH = app.screen.width, HEIGHT = app.screen.height;
-globalThis.__PIXI_APP__ = app;
 document.body.insertBefore(app.canvas, document.body.firstChild as ChildNode | null);
+declare global { namespace globalThis { var __PIXI_APP__: PIXI.Application; } }
+globalThis.__PIXI_APP__ = app;
 
-let mapCont: PIXI.Container;
-function drawPerlin(start: number, end: number, step: number) {
-    let perlin: Perlin = new Perlin();
-    let nodes: Array<Array<number>> = [];
-    let ratio = WIDTH/Math.abs(end-start);
-    for (let i=0; i<=Math.abs(end-start)+step; i+=step) {
-        nodes.push([i*ratio, perlin.noise(i+start, 0.32)*HEIGHT/2]);
+let WIDTH = app.screen.width, HEIGHT = app.screen.height;
+
+class PerlinMap {
+    mapCont: PIXI.Graphics;
+    x: number;
+    y: number;
+    scale: number;
+    octaves: number;
+    lacunarity: number;
+    persistence: number;
+    resolution: number;
+    draw() {
+        let perlin: Perlin = new Perlin();
+        let nodes: Array<Array<number>> = [];
+        for (let i=0; i<=WIDTH*(1+this.resolution); i+=WIDTH/(this.resolution)) {
+            let total = 0;
+            let freq = this.scale / 100; // default scale 
+            let amp = 1;
+            let maxIncremented = 0;
+            for (let j=0; j<this.octaves; j++) {
+                total+=perlin.noise((i+this.x)*freq, this.y) * amp * HEIGHT/2;
+                maxIncremented+=amp;
+                freq*=this.lacunarity;
+                amp*=this.persistence;
+            }
+            nodes.push([i, HEIGHT/6 + total/maxIncremented]);
+        }
+        if (this.mapCont) this.mapCont.destroy();
+        this.mapCont = traceNodes(nodes);
+        app.stage.addChild(this.mapCont);
     }
-    if (mapCont) mapCont.destroy();
-    mapCont = traceNodes(nodes);
-    app.stage.addChild(mapCont);
-} 
-function traceNodes(nodes: Array<Array<number>>): PIXI.Container {
-    let cont = new PIXI.Container();
+}
+function traceNodes(nodes: Array<Array<number>>): PIXI.Graphics {
     let line = new PIXI.Graphics()
         .setStrokeStyle({color: 0x00ee00, width: 2})
         .moveTo(nodes[0][0], HEIGHT-nodes[0][1]);
     for (let i=1; i<nodes.length; i++) {
         line.lineTo(nodes[i][0], HEIGHT-nodes[i][1]).stroke();
     }
-    cont.addChild(line);
-    return cont;
+    return line;
 }
-const noiseRangeStartEl = (document.getElementById("noise-range-start")! as HTMLInputElement);
-const noiseRangeEndEl = (document.getElementById("noise-range-end")! as HTMLInputElement);
-const noiseSamplestepEl = (document.getElementById("noise-samplestep")! as HTMLInputElement);
-const noiseSamplestepLabelEl = (document.getElementById("noise-samplestep-label")! as HTMLSpanElement);
+
+const inputList: {input: Array<HTMLInputElement>, label: Array<HTMLSpanElement>} = {
+    input: [
+        document.getElementById("noise-x")! as HTMLInputElement,
+        document.getElementById("noise-y")! as HTMLInputElement,
+        document.getElementById("noise-scale")! as HTMLInputElement,
+        document.getElementById("noise-octaves")! as HTMLInputElement,
+        document.getElementById("noise-lacunarity")! as HTMLInputElement,
+        document.getElementById("noise-persistence")! as HTMLInputElement,
+        document.getElementById("noise-resolution")! as HTMLInputElement,
+    ], 
+    label: [
+        document.getElementById("noise-resolution-label")!,
+        document.getElementById("noise-persistence-label")!
+    ]
+}
+
+let mapgen = new PerlinMap();
 function onChange() {
-    drawPerlin(
-        parseInt(noiseRangeStartEl.value),
-        parseInt(noiseRangeEndEl.value), 
-        parseFloat(noiseSamplestepEl.value)
-    );
-    noiseSamplestepLabelEl.innerHTML = noiseSamplestepEl.value;
+    mapgen.x = parseFloat(inputList.input[0].value), // x
+    mapgen.y = parseFloat(inputList.input[1].value), // y
+    mapgen.scale = parseFloat(inputList.input[2].value), // freq
+    mapgen.octaves = parseFloat(inputList.input[3].value), // freq
+    mapgen.lacunarity = parseFloat(inputList.input[4].value), // lacunarity
+    mapgen.persistence = parseFloat(inputList.input[5].value), // persistence
+    mapgen.resolution = parseFloat(inputList.input[6].value), // resolution
+    inputList.label[0].innerHTML = inputList.input[6].value;
+    inputList.label[1].innerHTML = inputList.input[5].value;
+    mapgen.draw();
 }
+for (let inp of inputList.input) inp.addEventListener("change", onChange);
 onChange();
-noiseRangeStartEl!.addEventListener("change", onChange);
-noiseRangeEndEl!.addEventListener("change", onChange);
-noiseSamplestepEl!.addEventListener("change", onChange);

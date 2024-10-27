@@ -22,7 +22,7 @@ export class Perlin {
     static {
         for (let i=0; i < 256; i++) Perlin.p[256+i] = Perlin.p[i] = permutation[i]; 
     };
-    noise(x: number, y: number): number {
+    noise(x: number, y: number): number { // https://mrl.cs.nyu.edu/~perlin/noise/ ported to 2d
         let X = Math.floor(x) & 255;
         let Y = Math.floor(y) & 255;
         x -= Math.floor(x);
