@@ -24,9 +24,9 @@ class PerlinMap {
     lacunarity: number;
     persistence: number;
     resolution: number;
-    draw() {
+    draw(): void {
         let perlin: Perlin = new Perlin();
-        let nodes: Array<Array<number>> = [];
+        let nodes: Array<[number, number]> = [];
         for (let i=0; i<=WIDTH*(1+this.resolution); i+=WIDTH/(this.resolution)) {
             let total = 0;
             let freq = this.scale / 100; // default scale 
@@ -45,7 +45,7 @@ class PerlinMap {
         app.stage.addChild(this.mapCont);
     }
 }
-function traceNodes(nodes: Array<Array<number>>): PIXI.Graphics {
+function traceNodes(nodes: Array<[number, number]>): PIXI.Graphics {
     let line = new PIXI.Graphics()
         .setStrokeStyle({color: 0x00ee00, width: 2})
         .moveTo(nodes[0][0], HEIGHT-nodes[0][1]);
@@ -55,34 +55,53 @@ function traceNodes(nodes: Array<Array<number>>): PIXI.Graphics {
     return line;
 }
 
-const inputList: {input: Array<HTMLInputElement>, label: Array<HTMLSpanElement>} = {
-    input: [
-        document.getElementById("noise-x")! as HTMLInputElement,
-        document.getElementById("noise-y")! as HTMLInputElement,
-        document.getElementById("noise-scale")! as HTMLInputElement,
-        document.getElementById("noise-octaves")! as HTMLInputElement,
-        document.getElementById("noise-lacunarity")! as HTMLInputElement,
-        document.getElementById("noise-persistence")! as HTMLInputElement,
-        document.getElementById("noise-resolution")! as HTMLInputElement,
-    ], 
-    label: [
-        document.getElementById("noise-resolution-label")!,
-        document.getElementById("noise-persistence-label")!
-    ]
-}
-
 let mapgen = new PerlinMap();
+const variableList = { 
+    'noise-x': 'x',
+    'noise-y': 'y',
+    'noise-scale': 'scale',
+    'noise-octaves': 'octaves',
+    'noise-lacunarity': 'lacunarity',
+    'noise-persistence': 'persistence',
+    'noise-resolution': 'resolution',
+}
+const labelList = {
+    'noise-persistence-label': 'noise-persistence',
+    'noise-resolution-label': 'noise-resolution',
+}
+function parseHTMLIds<T>(id: string): T {
+    return document.getElementById(id)! as T;
+}
+type getsetter<T> = {
+    get: () => T;
+    set: (value: T) => void;
+}
+let variableEls = new Map<HTMLInputElement, getsetter<number>>();
+let labelEls = new Map<HTMLElement, getsetter<number>>();
 function onChange() {
-    mapgen.x = parseFloat(inputList.input[0].value), // x
-    mapgen.y = parseFloat(inputList.input[1].value), // y
-    mapgen.scale = parseFloat(inputList.input[2].value), // freq
-    mapgen.octaves = parseFloat(inputList.input[3].value), // freq
-    mapgen.lacunarity = parseFloat(inputList.input[4].value), // lacunarity
-    mapgen.persistence = parseFloat(inputList.input[5].value), // persistence
-    mapgen.resolution = parseFloat(inputList.input[6].value), // resolution
-    inputList.label[0].innerHTML = inputList.input[6].value;
-    inputList.label[1].innerHTML = inputList.input[5].value;
+    variableEls.forEach((getset, el) => {
+        getset.set(parseFloat(el?.value));
+    });
+    labelEls.forEach((getset, el) => {
+        el.innerHTML = getset.get().toString();
+    });
     mapgen.draw();
 }
-for (let inp of inputList.input) inp.addEventListener("change", onChange);
+for (let id in variableList) {
+    let key = variableList[id as keyof typeof variableList] as keyof typeof mapgen;
+    let el = parseHTMLIds<HTMLInputElement>(id);
+    variableEls.set(el, {
+            get: () => mapgen[key] as number,
+            set: (value: number) => (mapgen as any)[key] = value
+        }
+    );
+    el.addEventListener("change", onChange);
+}
+for (let id in labelList) {
+    let key = id as keyof typeof labelList;
+    labelEls.set(
+        parseHTMLIds<HTMLElement>(id),
+        variableEls.get(parseHTMLIds<HTMLInputElement>(labelList[key]))!
+    );
+}
 onChange();
